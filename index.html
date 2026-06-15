@@ -54,6 +54,42 @@
           <button id="reveal" type="button" aria-pressed="false">Reveal</button>
           <button id="copy" type="button">Copy</button>
         </div>
+
+        <section class="evaluation-panel" aria-label="Human evaluation">
+          <label class="candidate-field">
+            <span>Candidates</span>
+            <input id="candidate-path" value="assets/data/experiments/smoke-001-top-candidates.json" spellcheck="false">
+          </label>
+
+          <div class="actions">
+            <button id="load-candidates" type="button">Load</button>
+            <button id="previous-candidate" type="button">Prev</button>
+            <button id="next-candidate" type="button">Next</button>
+            <button id="submit-feedback" type="button">Submit</button>
+          </div>
+
+          <label>
+            <span>Enjoyment <output id="enjoyment-value">5</output></span>
+            <input id="enjoyment-score" type="range" min="0" max="9" step="1" value="5">
+          </label>
+
+          <label>
+            <span>Difficulty</span>
+            <select id="difficulty-rating">
+              <option value="over_easy">Over Easy</option>
+              <option value="easy" selected>Easy</option>
+              <option value="hard">Hard</option>
+              <option value="over_hard">Over Hard</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Hints</span>
+            <input id="hint-count" type="number" min="0" value="0" readonly>
+          </label>
+
+          <button id="export-feedback" type="button">Copy Feedback CSV</button>
+        </section>
       </section>
 
       <section class="workspace" aria-label="Puzzle">

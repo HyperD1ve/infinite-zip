@@ -86,6 +86,11 @@ input {
   text-transform: uppercase;
 }
 
+input[type="number"],
+input[type="range"] {
+  text-transform: none;
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -129,6 +134,47 @@ button:disabled {
 
 #reveal.is-active {
   outline: 3px solid rgba(217, 93, 57, 0.22);
+}
+
+.evaluation-panel {
+  display: grid;
+  gap: 14px;
+  padding-top: 16px;
+  border-top: 1px solid #d9ded7;
+}
+
+.evaluation-panel .actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+.candidate-field {
+  min-width: 0;
+}
+
+#candidate-path {
+  text-transform: none;
+  font-size: 0.8rem;
+}
+
+#submit-feedback {
+  background: #107c7a;
+}
+
+#load-candidates,
+#previous-candidate,
+#next-candidate,
+#export-feedback {
+  background: #334146;
+}
+
+#enjoyment-score {
+  padding: 0;
+  accent-color: #107c7a;
+}
+
+#hint-count {
+  color: #4e5a5d;
+  background: #eef2ef;
 }
 
 .workspace {
@@ -323,6 +369,7 @@ button:disabled {
 
   .brand,
   .seed-field,
+  .evaluation-panel,
   .actions {
     grid-column: 1 / -1;
   }
