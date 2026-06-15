@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Infinite Zip</title>
+    <link rel="stylesheet" href="./src/ui/styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="toolbar" aria-label="Puzzle controls">
+        <div class="brand">
+          <span class="mark" aria-hidden="true"></span>
+          <h1>Infinite Zip</h1>
+        </div>
+
+        <label>
+          <span>Rows</span>
+          <select id="rows">
+            <option>4</option>
+            <option selected>5</option>
+            <option>6</option>
+            <option>7</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Cols</span>
+          <select id="cols">
+            <option>4</option>
+            <option selected>5</option>
+            <option>6</option>
+            <option>7</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Target</span>
+          <select id="target">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+
+        <label class="seed-field">
+          <span>Seed</span>
+          <input id="seed" autocomplete="off" spellcheck="false">
+        </label>
+
+        <div class="actions">
+          <button id="generate" type="button">Generate</button>
+          <button id="reset" type="button">Reset</button>
+          <button id="reveal" type="button" aria-pressed="false">Reveal</button>
+          <button id="copy" type="button">Copy</button>
+        </div>
+      </section>
+
+      <section class="workspace" aria-label="Puzzle">
+        <div class="stats" id="stats"></div>
+        <div id="board" class="board" aria-label="Zip board"></div>
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script type="module" src="./src/ui/app.js"></script>
+  </body>
+</html>
