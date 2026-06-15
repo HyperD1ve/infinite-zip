@@ -1,6 +1,7 @@
 import { areAdjacent, buildWallSet, cellKey, hasWallBetween } from '../game/board.js';
 import { publicPuzzle } from '../game/puzzle.js';
 import { generatePuzzle } from '../generator/puzzle.js';
+import { createFeedbackRecord, feedbackToCsv, readFeedbackRecords, saveFeedbackRecord } from './feedback.js';
 import { arrowDestination, isArrowKey } from './input.js';
 import { renderBoard } from './components/boardView.js';
 
@@ -12,6 +13,16 @@ const generateButton = document.querySelector('#generate');
 const resetButton = document.querySelector('#reset');
 const revealButton = document.querySelector('#reveal');
 const copyButton = document.querySelector('#copy');
+const candidatePathInput = document.querySelector('#candidate-path');
+const loadCandidatesButton = document.querySelector('#load-candidates');
+const previousCandidateButton = document.querySelector('#previous-candidate');
+const nextCandidateButton = document.querySelector('#next-candidate');
+const submitFeedbackButton = document.querySelector('#submit-feedback');
+const exportFeedbackButton = document.querySelector('#export-feedback');
+const enjoymentScoreInput = document.querySelector('#enjoyment-score');
+const enjoymentValue = document.querySelector('#enjoyment-value');
+const difficultyRatingInput = document.querySelector('#difficulty-rating');
+const hintCountInput = document.querySelector('#hint-count');
 const board = document.querySelector('#board');
 const stats = document.querySelector('#stats');
 const status = document.querySelector('#status');
@@ -22,6 +33,12 @@ const state = {
   /** @type {import('../types/index.js').SolutionPath} */
   playerPath: [],
   reveal: false,
+  /** @type {{ rank?: number, puzzle: import('../types/index.js').Puzzle, featureRow?: Record<string, unknown> }[]} */
+  candidates: [],
+  candidateIndex: -1,
+  evaluationStartedAt: Date.now(),
+  hintCount: 0,
+  completed: false,
 };
 
 generateButton.addEventListener('click', () => generateFromControls());
@@ -32,11 +49,23 @@ resetButton.addEventListener('click', () => {
   render();
 });
 revealButton.addEventListener('click', () => {
+  if (!state.reveal) {
+    state.hintCount += 1;
+    syncEvaluationFields();
+  }
   state.reveal = !state.reveal;
   setStatus(state.reveal ? 'Revealed' : 'Hidden');
   render();
 });
 copyButton.addEventListener('click', () => copyPublicPuzzle());
+loadCandidatesButton.addEventListener('click', () => loadCandidates());
+previousCandidateButton.addEventListener('click', () => showCandidate(state.candidateIndex - 1));
+nextCandidateButton.addEventListener('click', () => showCandidate(state.candidateIndex + 1));
+submitFeedbackButton.addEventListener('click', () => submitFeedback());
+exportFeedbackButton.addEventListener('click', () => copyFeedbackCsv());
+enjoymentScoreInput.addEventListener('input', () => {
+  enjoymentValue.textContent = enjoymentScoreInput.value;
+});
 document.addEventListener('keydown', handleKeyDown);
 
 generateFromControls();
@@ -54,8 +83,8 @@ function generateFromControls() {
 
       seedInput.value = seed;
       state.puzzle = generatePuzzle({ rows, cols, seed, target });
-      selectStartClue();
-      state.reveal = false;
+      state.candidateIndex = -1;
+      resetPlayState();
       setStatus('Ready');
       render();
     } catch (error) {
@@ -65,6 +94,54 @@ function generateFromControls() {
       setBusy(false);
     }
   });
+}
+
+async function loadCandidates() {
+  setStatus('Loading candidates');
+
+  try {
+    const response = await fetch(candidatePathInput.value.trim());
+    if (!response.ok) {
+      throw new Error(`Could not load candidates (${response.status})`);
+    }
+
+    const records = await response.json();
+    state.candidates = records.map((record) => ({
+      rank: record.rank,
+      puzzle: record.puzzle,
+      featureRow: record.featureRow,
+    }));
+
+    if (state.candidates.length === 0) {
+      throw new Error('Candidate file is empty.');
+    }
+
+    showCandidate(0);
+  } catch (error) {
+    console.error(error);
+    setStatus(error instanceof Error ? error.message : 'Candidate load failed');
+  }
+}
+
+/**
+ * @param {number} index
+ */
+function showCandidate(index) {
+  if (state.candidates.length === 0) {
+    setStatus('No candidates');
+    return;
+  }
+
+  const boundedIndex = Math.max(0, Math.min(state.candidates.length - 1, index));
+  const candidate = state.candidates[boundedIndex];
+  state.candidateIndex = boundedIndex;
+  state.puzzle = candidate.puzzle;
+  seedInput.value = state.puzzle.seed ?? '';
+  rowsInput.value = String(state.puzzle.rows);
+  colsInput.value = String(state.puzzle.cols);
+  resetPlayState();
+  setStatus(`Candidate ${boundedIndex + 1}/${state.candidates.length}`);
+  render();
 }
 
 /**
@@ -144,8 +221,18 @@ function pickCell(cell) {
 
   state.playerPath = [...path, cell];
   const solved = state.playerPath.length === state.puzzle.rows * state.puzzle.cols && isFinalClue;
+  state.completed = solved || state.completed;
   setStatus(solved ? 'Solved' : clue ? `Reached ${clue.number}` : `${state.playerPath.length}`);
   render();
+}
+
+function resetPlayState() {
+  selectStartClue();
+  state.reveal = false;
+  state.hintCount = 0;
+  state.completed = false;
+  state.evaluationStartedAt = Date.now();
+  syncEvaluationFields();
 }
 
 function selectStartClue() {
@@ -172,6 +259,7 @@ function render() {
     `${state.puzzle.walls?.length ?? 0} walls`,
     state.puzzle.difficulty,
     `seed ${state.puzzle.seed}`,
+    state.candidateIndex >= 0 ? `candidate ${state.candidateIndex + 1}/${state.candidates.length}` : '',
   ].filter(Boolean).join(' / ');
 
   renderBoard({
@@ -181,6 +269,65 @@ function render() {
     reveal: state.reveal,
     onPick: pickCell,
   });
+}
+
+async function submitFeedback() {
+  if (!state.puzzle?.seed) {
+    setStatus('No puzzle');
+    return;
+  }
+
+  const elapsedSeconds = Math.max(0, Math.round((Date.now() - state.evaluationStartedAt) / 1000));
+  const record = createFeedbackRecord({
+    puzzleId: state.puzzle.seed,
+    enjoymentScore: Number(enjoymentScoreInput.value),
+    difficultyRating: difficultyRatingInput.value,
+    hintCount: state.hintCount,
+    solveTimeSeconds: elapsedSeconds,
+    completed: state.completed,
+  });
+
+  saveFeedbackRecord(record);
+
+  try {
+    const response = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        feedback: record,
+        puzzle: state.puzzle,
+        featureRow: state.candidates[state.candidateIndex]?.featureRow,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error ?? 'Save failed');
+    }
+    setStatus(`Saved to ${result.statisticsPath}`);
+  } catch (error) {
+    console.error(error);
+    setStatus('Saved in browser only');
+  }
+}
+
+async function copyFeedbackCsv() {
+  const rows = readFeedbackRecords();
+  if (rows.length === 0) {
+    setStatus('No feedback');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(`${feedbackToCsv(rows)}\n`);
+    setStatus(`Copied ${rows.length}`);
+  } catch (error) {
+    console.error(error);
+    setStatus('Copy failed');
+  }
+}
+
+function syncEvaluationFields() {
+  hintCountInput.value = String(state.hintCount);
 }
 
 function clueAt(cell) {

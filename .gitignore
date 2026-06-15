@@ -1,2 +1,9 @@
-.agents
-.agents/*
+.DS_Store
+
+# Local runtime feedback and exploratory search outputs.
+assets/data/feedback/human-feedback.csv
+assets/data/experiments/*.csv
+assets/data/experiments/*.json
+
+# Keep directory documentation even when generated experiment outputs are ignored.
+!assets/data/experiments/README.md
