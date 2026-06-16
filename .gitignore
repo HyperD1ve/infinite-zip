@@ -1,4 +1,5 @@
 .DS_Store
+**/.DS_Store
 
 # Local runtime feedback and exploratory search outputs.
 assets/data/feedback/human-feedback.csv
