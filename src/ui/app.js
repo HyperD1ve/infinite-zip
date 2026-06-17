@@ -1,101 +1,62 @@
 import { areAdjacent, buildWallSet, cellKey, hasWallBetween } from '../game/board.js';
-import { publicPuzzle } from '../game/puzzle.js';
 import { generatePuzzle } from '../generator/puzzle.js';
-import { createFeedbackRecord, feedbackToCsv, readFeedbackRecords, saveFeedbackRecord } from './feedback.js';
+import { createFeedbackRecord, saveFeedbackRecord } from './feedback.js';
 import { arrowDestination, isArrowKey } from './input.js';
 import { renderBoard } from './components/boardView.js';
 
-const rowsInput = document.querySelector('#rows');
-const colsInput = document.querySelector('#cols');
-const targetInput = document.querySelector('#target');
-const seedInput = document.querySelector('#seed');
-const generateButton = document.querySelector('#generate');
-const resetButton = document.querySelector('#reset');
-const revealButton = document.querySelector('#reveal');
-const copyButton = document.querySelector('#copy');
-const candidatePathInput = document.querySelector('#candidate-path');
-const loadCandidatesButton = document.querySelector('#load-candidates');
-const previousCandidateButton = document.querySelector('#previous-candidate');
-const nextCandidateButton = document.querySelector('#next-candidate');
-const submitFeedbackButton = document.querySelector('#submit-feedback');
+const DEFAULT_ROWS = 5;
+const DEFAULT_COLS = 5;
+const DEFAULT_TARGET = 'hard';
+
+const hintButton = document.querySelector('#hint');
 const submitNextButton = document.querySelector('#submit-next');
-const exportFeedbackButton = document.querySelector('#export-feedback');
 const enjoymentScoreInput = document.querySelector('#enjoyment-score');
 const enjoymentValue = document.querySelector('#enjoyment-value');
 const difficultyRatingInput = document.querySelector('#difficulty-rating');
 const hintCountInput = document.querySelector('#hint-count');
 const loopState = document.querySelector('#loop-state');
-const candidateCount = document.querySelector('#candidate-count');
 const elapsedTime = document.querySelector('#elapsed-time');
 const completionState = document.querySelector('#completion-state');
-const candidateSource = document.querySelector('#candidate-source');
 const candidateTitle = document.querySelector('#candidate-title');
 const board = document.querySelector('#board');
 const stats = document.querySelector('#stats');
 const status = document.querySelector('#status');
 
 const state = {
-  /** @type {import('../types/index.js').Puzzle & { solverStats?: { nodesVisited: number, backtracks: number, branchingEvents: number, branchChoices: number } } | null} */
+  /** @type {import('../types/index.js').Puzzle | null} */
   puzzle: null,
   /** @type {import('../types/index.js').SolutionPath} */
   playerPath: [],
   reveal: false,
-  /** @type {{ rank?: number, puzzle: import('../types/index.js').Puzzle, featureRow?: Record<string, unknown> }[]} */
-  candidates: [],
-  candidateIndex: -1,
-  candidateSource: 'generated',
   evaluationStartedAt: Date.now(),
   hintCount: 0,
   completed: false,
   saved: false,
+  busy: false,
 };
 
-generateButton.addEventListener('click', () => generateFromControls());
-resetButton.addEventListener('click', () => {
-  selectStartClue();
-  state.reveal = false;
-  setStatus('Reset');
-  render();
-});
-revealButton.addEventListener('click', () => {
-  if (!state.reveal) {
-    state.hintCount += 1;
-    syncEvaluationFields();
-  }
-  state.reveal = !state.reveal;
-  setStatus(state.reveal ? 'Revealed' : 'Hidden');
-  render();
-});
-copyButton.addEventListener('click', () => copyPublicPuzzle());
-loadCandidatesButton.addEventListener('click', () => loadCandidates());
-previousCandidateButton.addEventListener('click', () => showCandidate(state.candidateIndex - 1));
-nextCandidateButton.addEventListener('click', () => showCandidate(state.candidateIndex + 1));
-submitFeedbackButton.addEventListener('click', () => submitFeedback());
-submitNextButton.addEventListener('click', () => submitFeedback({ advance: true }));
-exportFeedbackButton.addEventListener('click', () => copyFeedbackCsv());
+hintButton.addEventListener('click', () => handleHint());
+submitNextButton.addEventListener('click', () => submitFeedbackAndAdvance());
 enjoymentScoreInput.addEventListener('input', () => {
   enjoymentValue.textContent = enjoymentScoreInput.value;
 });
 document.addEventListener('keydown', handleKeyDown);
 setInterval(() => renderLoopState(), 1000);
 
-generateFromControls();
+generateNextPuzzle();
 
-function generateFromControls() {
-  setBusy(true);
+function generateNextPuzzle() {
+  setBusy(true, 'Loading');
   setStatus('Generating');
 
   requestAnimationFrame(() => {
     try {
-      const rows = Number(rowsInput.value);
-      const cols = Number(colsInput.value);
-      const target = targetInput.value;
-      const seed = seedInput.value.trim() || randomUiSeed();
-
-      seedInput.value = seed;
-      state.puzzle = generatePuzzle({ rows, cols, seed, target });
-      state.candidateIndex = -1;
-      state.candidateSource = 'generated';
+      state.puzzle = generatePuzzle({
+        rows: DEFAULT_ROWS,
+        cols: DEFAULT_COLS,
+        target: DEFAULT_TARGET,
+        seed: randomUiSeed(),
+      });
       resetPlayState();
       setStatus('Ready');
       render();
@@ -108,52 +69,15 @@ function generateFromControls() {
   });
 }
 
-async function loadCandidates() {
-  setStatus('Loading candidates');
-
-  try {
-    const response = await fetch(candidatePathInput.value.trim());
-    if (!response.ok) {
-      throw new Error(`Could not load candidates (${response.status})`);
-    }
-
-    const records = await response.json();
-    state.candidates = records.map((record) => ({
-      rank: record.rank,
-      puzzle: record.puzzle,
-      featureRow: record.featureRow,
-    }));
-
-    if (state.candidates.length === 0) {
-      throw new Error('Candidate file is empty.');
-    }
-
-    showCandidate(0);
-  } catch (error) {
-    console.error(error);
-    setStatus(error instanceof Error ? error.message : 'Candidate load failed');
-  }
-}
-
-/**
- * @param {number} index
- */
-function showCandidate(index) {
-  if (state.candidates.length === 0) {
-    setStatus('No candidates');
+function handleHint() {
+  if (!state.puzzle || state.reveal) {
     return;
   }
 
-  const boundedIndex = Math.max(0, Math.min(state.candidates.length - 1, index));
-  const candidate = state.candidates[boundedIndex];
-  state.candidateIndex = boundedIndex;
-  state.puzzle = candidate.puzzle;
-  state.candidateSource = 'queue';
-  seedInput.value = state.puzzle.seed ?? '';
-  rowsInput.value = String(state.puzzle.rows);
-  colsInput.value = String(state.puzzle.cols);
-  resetPlayState();
-  setStatus(`Candidate ${boundedIndex + 1}/${state.candidates.length}`);
+  state.hintCount += 1;
+  state.reveal = true;
+  syncEvaluationFields();
+  setStatus('Hint shown');
   render();
 }
 
@@ -161,7 +85,23 @@ function showCandidate(index) {
  * @param {KeyboardEvent} event
  */
 function handleKeyDown(event) {
-  if (!state.puzzle || state.reveal || !isArrowKey(event.key) || isTypingTarget(event.target)) {
+  if (!state.puzzle || isTypingTarget(event.target)) {
+    return;
+  }
+
+  if (event.code === 'Space') {
+    event.preventDefault();
+    resetPlayState();
+    setStatus('Reset');
+    render();
+    return;
+  }
+
+  if (state.reveal) {
+    return;
+  }
+
+  if (!isArrowKey(event.key)) {
     return;
   }
 
@@ -190,9 +130,6 @@ function pickCell(cell) {
   const seenIndex = path.findIndex((pathCell) => cellKey(pathCell) === key);
 
   if (seenIndex >= 0) {
-    state.playerPath = path.slice(0, seenIndex + 1);
-    setStatus('Trimmed');
-    render();
     return;
   }
 
@@ -265,19 +202,13 @@ function render() {
   }
 
   renderLoopState();
-  revealButton.setAttribute('aria-pressed', String(state.reveal));
-  revealButton.classList.toggle('is-active', state.reveal);
-
-  candidateSource.textContent = state.candidateSource === 'queue' ? 'Optimization queue' : 'Generated candidate';
-  candidateTitle.textContent = state.puzzle.seed ? String(state.puzzle.seed) : 'Untitled';
+  hintButton.disabled = state.reveal || state.busy;
+  candidateTitle.textContent = 'Puzzle';
   stats.textContent = [
     `${state.puzzle.rows}x${state.puzzle.cols}`,
     `${state.puzzle.clues.length} clues`,
     `${state.puzzle.walls?.length ?? 0} walls`,
-    state.puzzle.difficulty,
-    `seed ${state.puzzle.seed}`,
-    state.candidateIndex >= 0 ? `candidate ${state.candidateIndex + 1}/${state.candidates.length}` : '',
-  ].filter(Boolean).join(' / ');
+  ].join(' / ');
 
   renderBoard({
     container: board,
@@ -288,16 +219,14 @@ function render() {
   });
 }
 
-/**
- * @param {{ advance?: boolean }} options
- */
-async function submitFeedback(options = {}) {
+async function submitFeedbackAndAdvance() {
   if (!state.puzzle?.seed) {
     setStatus('No puzzle');
     return false;
   }
 
   setBusy(true, 'Saving');
+  setStatus('Saving');
   const elapsedSeconds = Math.max(0, Math.round((Date.now() - state.evaluationStartedAt) / 1000));
   const record = createFeedbackRecord({
     puzzleId: state.puzzle.seed,
@@ -318,7 +247,6 @@ async function submitFeedback(options = {}) {
       body: JSON.stringify({
         feedback: record,
         puzzle: state.puzzle,
-        featureRow: state.candidates[state.candidateIndex]?.featureRow,
       }),
     });
     const result = await response.json();
@@ -336,27 +264,11 @@ async function submitFeedback(options = {}) {
     renderLoopState();
   }
 
-  if (options.advance && repoSaved) {
-    advanceAfterSave();
+  if (repoSaved) {
+    generateNextPuzzle();
   }
 
   return repoSaved;
-}
-
-async function copyFeedbackCsv() {
-  const rows = readFeedbackRecords();
-  if (rows.length === 0) {
-    setStatus('No feedback');
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(`${feedbackToCsv(rows)}\n`);
-    setStatus(`Copied ${rows.length}`);
-  } catch (error) {
-    console.error(error);
-    setStatus('Copy failed');
-  }
 }
 
 function syncEvaluationFields() {
@@ -366,11 +278,10 @@ function syncEvaluationFields() {
 function resetFeedbackInputs() {
   enjoymentScoreInput.value = '5';
   enjoymentValue.textContent = '5';
-  difficultyRatingInput.value = 'easy';
+  difficultyRatingInput.value = 'hard';
 }
 
 function renderLoopState() {
-  candidateCount.textContent = `${readFeedbackRecords().length} saved`;
   const elapsedSeconds = Math.max(0, Math.round((Date.now() - state.evaluationStartedAt) / 1000));
   elapsedTime.textContent = `${elapsedSeconds}s`;
   completionState.textContent = state.saved ? 'Saved' : state.completed ? 'Solved' : 'Open';
@@ -382,18 +293,8 @@ function renderLoopState() {
   } else if (state.playerPath.length > 1) {
     loopState.textContent = 'Play';
   } else {
-    loopState.textContent = 'Generate';
+    loopState.textContent = 'Evaluate';
   }
-}
-
-function advanceAfterSave() {
-  if (state.candidates.length > 0 && state.candidateIndex < state.candidates.length - 1) {
-    showCandidate(state.candidateIndex + 1);
-    return;
-  }
-
-  seedInput.value = '';
-  generateFromControls();
 }
 
 function clueAt(cell) {
@@ -416,29 +317,15 @@ function nextClueNumber() {
   return reached + 1;
 }
 
-async function copyPublicPuzzle() {
-  if (!state.puzzle) {
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(JSON.stringify(publicPuzzle(state.puzzle), null, 2));
-    setStatus('Copied');
-  } catch (error) {
-    console.error(error);
-    setStatus('Copy failed');
-  }
-}
-
 /**
  * @param {boolean} busy
  * @param {string} label
  */
-function setBusy(busy, label = 'Generating') {
-  generateButton.disabled = busy;
-  submitFeedbackButton.disabled = busy;
+function setBusy(busy, label = 'Working') {
+  state.busy = busy;
   submitNextButton.disabled = busy;
-  generateButton.textContent = busy ? label : 'Generate';
+  hintButton.disabled = busy || state.reveal;
+  submitNextButton.textContent = busy ? label : 'Save & Next';
 }
 
 /**
@@ -449,7 +336,7 @@ function setStatus(message) {
 }
 
 function randomUiSeed() {
-  return Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `UI-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
 /**

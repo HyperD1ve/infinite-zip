@@ -2,6 +2,12 @@
 
 This directory is the project’s local puzzle database. Files here fall into four groups: canonical imported puzzles, feature/statistics rows, feedback labels, and training datasets.
 
+For a plain-language description of every currently logged feature and generator knob, see:
+
+```text
+FEATURES.md
+```
+
 ## Files
 
 ```text

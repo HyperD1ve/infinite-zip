@@ -67,7 +67,7 @@ The script is intentionally standalone, so it can be copied into other repositor
 The frontend is organized around the iterative loop:
 
 ```text
-generate or load candidate -> play Zip -> submit feedback -> save rows back to the repo
+auto-generate candidate -> play Zip -> submit feedback -> save rows back to the repo
 ```
 
 Start the app with:
@@ -76,13 +76,7 @@ Start the app with:
 npm start
 ```
 
-Use `Generate` for a fresh candidate, or load an optimization queue such as:
-
-```text
-assets/data/experiments/search-001-top-candidates.json
-```
-
-After playing, `Save` writes the feedback row and puzzle feature row through the local server. `Save & Next` advances to the next queued candidate, or generates a fresh candidate when the queue is exhausted.
+The frontend shows one generated puzzle at a time using fixed hidden defaults for the current evaluation loop. After playing, `Save & Next` writes the feedback row and puzzle feature row through the local server, then advances to a fresh puzzle. `Hint` reveals the solution and increments the hint count.
 
 Feedback writes to:
 
