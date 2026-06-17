@@ -18,11 +18,18 @@ const loadCandidatesButton = document.querySelector('#load-candidates');
 const previousCandidateButton = document.querySelector('#previous-candidate');
 const nextCandidateButton = document.querySelector('#next-candidate');
 const submitFeedbackButton = document.querySelector('#submit-feedback');
+const submitNextButton = document.querySelector('#submit-next');
 const exportFeedbackButton = document.querySelector('#export-feedback');
 const enjoymentScoreInput = document.querySelector('#enjoyment-score');
 const enjoymentValue = document.querySelector('#enjoyment-value');
 const difficultyRatingInput = document.querySelector('#difficulty-rating');
 const hintCountInput = document.querySelector('#hint-count');
+const loopState = document.querySelector('#loop-state');
+const candidateCount = document.querySelector('#candidate-count');
+const elapsedTime = document.querySelector('#elapsed-time');
+const completionState = document.querySelector('#completion-state');
+const candidateSource = document.querySelector('#candidate-source');
+const candidateTitle = document.querySelector('#candidate-title');
 const board = document.querySelector('#board');
 const stats = document.querySelector('#stats');
 const status = document.querySelector('#status');
@@ -36,9 +43,11 @@ const state = {
   /** @type {{ rank?: number, puzzle: import('../types/index.js').Puzzle, featureRow?: Record<string, unknown> }[]} */
   candidates: [],
   candidateIndex: -1,
+  candidateSource: 'generated',
   evaluationStartedAt: Date.now(),
   hintCount: 0,
   completed: false,
+  saved: false,
 };
 
 generateButton.addEventListener('click', () => generateFromControls());
@@ -62,11 +71,13 @@ loadCandidatesButton.addEventListener('click', () => loadCandidates());
 previousCandidateButton.addEventListener('click', () => showCandidate(state.candidateIndex - 1));
 nextCandidateButton.addEventListener('click', () => showCandidate(state.candidateIndex + 1));
 submitFeedbackButton.addEventListener('click', () => submitFeedback());
+submitNextButton.addEventListener('click', () => submitFeedback({ advance: true }));
 exportFeedbackButton.addEventListener('click', () => copyFeedbackCsv());
 enjoymentScoreInput.addEventListener('input', () => {
   enjoymentValue.textContent = enjoymentScoreInput.value;
 });
 document.addEventListener('keydown', handleKeyDown);
+setInterval(() => renderLoopState(), 1000);
 
 generateFromControls();
 
@@ -84,6 +95,7 @@ function generateFromControls() {
       seedInput.value = seed;
       state.puzzle = generatePuzzle({ rows, cols, seed, target });
       state.candidateIndex = -1;
+      state.candidateSource = 'generated';
       resetPlayState();
       setStatus('Ready');
       render();
@@ -136,6 +148,7 @@ function showCandidate(index) {
   const candidate = state.candidates[boundedIndex];
   state.candidateIndex = boundedIndex;
   state.puzzle = candidate.puzzle;
+  state.candidateSource = 'queue';
   seedInput.value = state.puzzle.seed ?? '';
   rowsInput.value = String(state.puzzle.rows);
   colsInput.value = String(state.puzzle.cols);
@@ -230,7 +243,9 @@ function resetPlayState() {
   state.reveal = false;
   state.hintCount = 0;
   state.completed = false;
+  state.saved = false;
   state.evaluationStartedAt = Date.now();
+  resetFeedbackInputs();
   syncEvaluationFields();
 }
 
@@ -249,9 +264,12 @@ function render() {
     return;
   }
 
+  renderLoopState();
   revealButton.setAttribute('aria-pressed', String(state.reveal));
   revealButton.classList.toggle('is-active', state.reveal);
 
+  candidateSource.textContent = state.candidateSource === 'queue' ? 'Optimization queue' : 'Generated candidate';
+  candidateTitle.textContent = state.puzzle.seed ? String(state.puzzle.seed) : 'Untitled';
   stats.textContent = [
     `${state.puzzle.rows}x${state.puzzle.cols}`,
     `${state.puzzle.clues.length} clues`,
@@ -270,12 +288,16 @@ function render() {
   });
 }
 
-async function submitFeedback() {
+/**
+ * @param {{ advance?: boolean }} options
+ */
+async function submitFeedback(options = {}) {
   if (!state.puzzle?.seed) {
     setStatus('No puzzle');
-    return;
+    return false;
   }
 
+  setBusy(true, 'Saving');
   const elapsedSeconds = Math.max(0, Math.round((Date.now() - state.evaluationStartedAt) / 1000));
   const record = createFeedbackRecord({
     puzzleId: state.puzzle.seed,
@@ -287,6 +309,7 @@ async function submitFeedback() {
   });
 
   saveFeedbackRecord(record);
+  let repoSaved = false;
 
   try {
     const response = await fetch('/api/feedback', {
@@ -302,11 +325,22 @@ async function submitFeedback() {
     if (!response.ok || !result.ok) {
       throw new Error(result.error ?? 'Save failed');
     }
+    state.saved = true;
+    repoSaved = true;
     setStatus(`Saved to ${result.statisticsPath}`);
   } catch (error) {
     console.error(error);
-    setStatus('Saved in browser only');
+    setStatus('Repo save failed; local copy kept');
+  } finally {
+    setBusy(false);
+    renderLoopState();
   }
+
+  if (options.advance && repoSaved) {
+    advanceAfterSave();
+  }
+
+  return repoSaved;
 }
 
 async function copyFeedbackCsv() {
@@ -327,6 +361,39 @@ async function copyFeedbackCsv() {
 
 function syncEvaluationFields() {
   hintCountInput.value = String(state.hintCount);
+}
+
+function resetFeedbackInputs() {
+  enjoymentScoreInput.value = '5';
+  enjoymentValue.textContent = '5';
+  difficultyRatingInput.value = 'easy';
+}
+
+function renderLoopState() {
+  candidateCount.textContent = `${readFeedbackRecords().length} saved`;
+  const elapsedSeconds = Math.max(0, Math.round((Date.now() - state.evaluationStartedAt) / 1000));
+  elapsedTime.textContent = `${elapsedSeconds}s`;
+  completionState.textContent = state.saved ? 'Saved' : state.completed ? 'Solved' : 'Open';
+
+  if (state.saved) {
+    loopState.textContent = 'Saved';
+  } else if (state.completed) {
+    loopState.textContent = 'Feedback';
+  } else if (state.playerPath.length > 1) {
+    loopState.textContent = 'Play';
+  } else {
+    loopState.textContent = 'Generate';
+  }
+}
+
+function advanceAfterSave() {
+  if (state.candidates.length > 0 && state.candidateIndex < state.candidates.length - 1) {
+    showCandidate(state.candidateIndex + 1);
+    return;
+  }
+
+  seedInput.value = '';
+  generateFromControls();
 }
 
 function clueAt(cell) {
@@ -365,10 +432,13 @@ async function copyPublicPuzzle() {
 
 /**
  * @param {boolean} busy
+ * @param {string} label
  */
-function setBusy(busy) {
+function setBusy(busy, label = 'Generating') {
   generateButton.disabled = busy;
-  generateButton.textContent = busy ? 'Generating' : 'Generate';
+  submitFeedbackButton.disabled = busy;
+  submitNextButton.disabled = busy;
+  generateButton.textContent = busy ? label : 'Generate';
 }
 
 /**

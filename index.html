@@ -8,65 +8,93 @@
   </head>
   <body>
     <main class="app">
-      <section class="toolbar" aria-label="Puzzle controls">
+      <section class="toolbar" aria-label="Iteration controls">
         <div class="brand">
           <span class="mark" aria-hidden="true"></span>
-          <h1>Infinite Zip</h1>
+          <div>
+            <h1>Infinite Zip</h1>
+            <p id="loop-state">Generate</p>
+          </div>
         </div>
 
-        <label>
-          <span>Rows</span>
-          <select id="rows">
-            <option>4</option>
-            <option selected>5</option>
-            <option>6</option>
-            <option>7</option>
-          </select>
-        </label>
+        <section class="panel" aria-label="Generate candidate">
+          <header>
+            <h2>Generate</h2>
+            <span id="candidate-count">0 saved</span>
+          </header>
 
-        <label>
-          <span>Cols</span>
-          <select id="cols">
-            <option>4</option>
-            <option selected>5</option>
-            <option>6</option>
-            <option>7</option>
-          </select>
-        </label>
+          <div class="field-grid">
+            <label>
+              <span>Rows</span>
+              <select id="rows">
+                <option>4</option>
+                <option selected>5</option>
+                <option>6</option>
+                <option>7</option>
+              </select>
+            </label>
 
-        <label>
-          <span>Target</span>
-          <select id="target">
-            <option value="easy">Easy</option>
-            <option value="medium" selected>Medium</option>
-            <option value="hard">Hard</option>
-          </select>
-        </label>
+            <label>
+              <span>Cols</span>
+              <select id="cols">
+                <option>4</option>
+                <option selected>5</option>
+                <option>6</option>
+                <option>7</option>
+              </select>
+            </label>
+          </div>
 
-        <label class="seed-field">
-          <span>Seed</span>
-          <input id="seed" autocomplete="off" spellcheck="false">
-        </label>
+          <label>
+            <span>Target</span>
+            <select id="target">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
 
-        <div class="actions">
-          <button id="generate" type="button">Generate</button>
-          <button id="reset" type="button">Reset</button>
-          <button id="reveal" type="button" aria-pressed="false">Reveal</button>
-          <button id="copy" type="button">Copy</button>
-        </div>
+          <label class="seed-field">
+            <span>Seed</span>
+            <input id="seed" autocomplete="off" spellcheck="false">
+          </label>
 
-        <section class="evaluation-panel" aria-label="Human evaluation">
+          <div class="actions actions-primary">
+            <button id="generate" type="button">Generate</button>
+            <button id="reset" type="button">Reset</button>
+          </div>
+        </section>
+
+        <section class="panel" aria-label="Candidate queue">
           <label class="candidate-field">
-            <span>Candidates</span>
-            <input id="candidate-path" value="assets/data/experiments/smoke-001-top-candidates.json" spellcheck="false">
+            <span>Queue</span>
+            <input id="candidate-path" value="assets/data/experiments/search-001-top-candidates.json" spellcheck="false">
           </label>
 
           <div class="actions">
             <button id="load-candidates" type="button">Load</button>
             <button id="previous-candidate" type="button">Prev</button>
             <button id="next-candidate" type="button">Next</button>
-            <button id="submit-feedback" type="button">Submit</button>
           </div>
+        </section>
+
+        <section class="panel" aria-label="Play controls">
+          <header>
+            <h2>Play</h2>
+            <span id="elapsed-time">0s</span>
+          </header>
+
+          <div class="actions">
+            <button id="reveal" type="button" aria-pressed="false">Reveal</button>
+            <button id="copy" type="button">Copy</button>
+          </div>
+        </section>
+
+        <section class="panel feedback-panel" aria-label="Human feedback">
+          <header>
+            <h2>Feedback</h2>
+            <span id="completion-state">Open</span>
+          </header>
 
           <label>
             <span>Enjoyment <output id="enjoyment-value">5</output></span>
@@ -88,12 +116,23 @@
             <input id="hint-count" type="number" min="0" value="0" readonly>
           </label>
 
-          <button id="export-feedback" type="button">Copy Feedback CSV</button>
+          <div class="actions actions-primary">
+            <button id="submit-feedback" type="button">Save</button>
+            <button id="submit-next" type="button">Save & Next</button>
+          </div>
+
+          <button id="export-feedback" type="button">Copy Local CSV</button>
         </section>
       </section>
 
       <section class="workspace" aria-label="Puzzle">
-        <div class="stats" id="stats"></div>
+        <header class="workspace-header">
+          <div>
+            <p id="candidate-source">Generated candidate</p>
+            <h2 id="candidate-title">Ready</h2>
+          </div>
+          <div class="stats" id="stats"></div>
+        </header>
         <div id="board" class="board" aria-label="Zip board"></div>
         <p id="status" class="status" aria-live="polite"></p>
       </section>

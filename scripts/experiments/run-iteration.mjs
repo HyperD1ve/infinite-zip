@@ -8,7 +8,7 @@ import { writeCsv } from '../../.agents/skills/collect-statistics/scripts/csv.js
 import { generatePuzzle } from '../../src/generator/puzzle.js';
 import { generatorParameterRow, sampleGeneratorParameters } from '../../src/generator/parameters.js';
 import { countSolutions } from '../../src/solver/solve.js';
-import { SCORE_COLUMNS, scoreCandidate } from '../../src/optimization/scoring.js';
+import { SCORE_COLUMNS, scoreCandidates } from '../../src/optimization/scoring.js';
 
 const repoRoot = path.join(fileURLToPath(new URL('../..', import.meta.url)));
 const defaultOutputDir = path.join(repoRoot, 'assets', 'data', 'experiments');
@@ -35,13 +35,11 @@ for (let index = 0; index < options.count; index += 1) {
       { maxSolutions: 2, maxNodes: options.maxNodes },
     );
     const featureRow = extractPuzzleStatistics(puzzle, solveResult, { id: seed });
-    const scoreRow = scoreCandidate(featureRow);
     const row = {
       experiment_id: experimentId,
       generation_status: solveResult.solutionCount === 1 && !solveResult.limitHit ? 'valid_unique' : 'solver_rejected',
       ...featureRow,
       ...generatorParameterRow(parameters),
-      ...scoreRow,
     };
 
     historyRows.push(row);
@@ -57,6 +55,19 @@ for (let index = 0; index < options.count; index += 1) {
       ranking_score: '',
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+}
+
+const scoreableRecords = candidateRecords.filter((record) => record.row.generation_status !== 'generation_failed');
+if (scoreableRecords.length > 0) {
+  const scores = scoreCandidates(scoreableRecords.map((record) => record.row), {
+    scorer: options.scorer,
+    modelMetadataPath: options.modelMetadataPath,
+    predictScriptPath: options.predictScriptPath,
+  });
+
+  for (let index = 0; index < scoreableRecords.length; index += 1) {
+    Object.assign(scoreableRecords[index].row, scores[index]);
   }
 }
 
@@ -111,6 +122,9 @@ function parseArgs(args) {
     experimentId: null,
     maxNodes: 300000,
     outputDir: defaultOutputDir,
+    scorer: 'auto',
+    modelMetadataPath: null,
+    predictScriptPath: null,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -144,6 +158,15 @@ function parseArgs(args) {
     } else if (arg === '--output-dir') {
       parsed.outputDir = path.resolve(next || parsed.outputDir);
       index += 1;
+    } else if (arg === '--scorer') {
+      parsed.scorer = parseScorer(next);
+      index += 1;
+    } else if (arg === '--model-metadata') {
+      parsed.modelMetadataPath = path.resolve(next || '');
+      index += 1;
+    } else if (arg === '--predict-script') {
+      parsed.predictScriptPath = path.resolve(next || '');
+      index += 1;
     } else if (arg === '--help') {
       printHelpAndExit();
     } else {
@@ -176,6 +199,16 @@ function parseTarget(value) {
   throw new Error('--target must be easy, medium, or hard.');
 }
 
+/**
+ * @param {string | undefined} value
+ */
+function parseScorer(value) {
+  if (value === 'auto' || value === 'bootstrap' || value === 'xgboost') {
+    return value;
+  }
+  throw new Error('--scorer must be auto, bootstrap, or xgboost.');
+}
+
 function printHelpAndExit() {
   console.log(`Usage: node scripts/experiments/run-iteration.mjs [options]
 
@@ -189,6 +222,9 @@ Options:
   --experiment-id <id>  Stable output basename.
   --max-nodes <n>       Solver node cap. Default: 300000
   --output-dir <path>   Output directory. Default: assets/data/experiments
+  --scorer <name>        auto, bootstrap, or xgboost. Default: auto
+  --model-metadata <p>   XGBoost metadata JSON for auto/xgboost scoring.
+  --predict-script <p>   Python prediction script for auto/xgboost scoring.
 `);
   process.exit(0);
 }

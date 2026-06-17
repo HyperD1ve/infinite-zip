@@ -149,7 +149,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train the Zip puzzle XGBoost quality model.")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT, help="Joined training CSV.")
     parser.add_argument("--target", default="enjoyment_score", help="Numeric target column.")
-    parser.add_argument("--model-output", type=Path, default=DEFAULT_MODEL_OUTPUT, help="Output .xgb model path.")
+    parser.add_argument("--model-output", type=Path, default=DEFAULT_MODEL_OUTPUT, help="Output model path.")
     parser.add_argument(
         "--metadata-output",
         type=Path,

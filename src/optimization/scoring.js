@@ -1,12 +1,47 @@
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 export const SCORE_COLUMNS = [
   'scorer_name',
   'predicted_quality_score',
   'ranking_score',
 ];
 
+const repoRoot = path.join(fileURLToPath(new URL('../..', import.meta.url)));
+const defaultPredictScript = path.join(repoRoot, 'scripts', 'model', 'predict_quality.py');
+const defaultModelMetadata = path.join(repoRoot, 'models', 'puzzle_quality-metadata.json');
+
+/**
+ * Score a batch of generated candidates. In `auto` mode this uses the local
+ * XGBoost artifact when available, then falls back to the bootstrap scorer.
+ *
+ * @param {Record<string, unknown>[]} featureRows
+ * @param {{
+ *   scorer?: 'auto' | 'bootstrap' | 'xgboost',
+ *   modelMetadataPath?: string,
+ *   predictScriptPath?: string
+ * }} options
+ */
+export function scoreCandidates(featureRows, options = {}) {
+  const scorer = options.scorer ?? 'auto';
+  if (scorer !== 'bootstrap') {
+    try {
+      return scoreWithXgboost(featureRows, options);
+    } catch (error) {
+      if (scorer === 'xgboost') {
+        throw error;
+      }
+    }
+  }
+
+  return featureRows.map((featureRow) => scoreCandidate(featureRow));
+}
+
 /**
  * This is a framework bootstrap scorer, not the final learned quality model.
- * Replace this seam with an XGBoost-backed scorer once labeled feedback exists.
+ * It remains as a fallback before an XGBoost artifact has been trained.
  *
  * @param {Record<string, unknown>} featureRow
  */
@@ -31,6 +66,39 @@ export function scoreCandidate(featureRow) {
     predicted_quality_score: '',
     ranking_score: rankingScore,
   };
+}
+
+/**
+ * @param {Record<string, unknown>[]} featureRows
+ * @param {{ modelMetadataPath?: string, predictScriptPath?: string }} options
+ */
+function scoreWithXgboost(featureRows, options) {
+  const metadataPath = path.resolve(options.modelMetadataPath ?? defaultModelMetadata);
+  const scriptPath = path.resolve(options.predictScriptPath ?? defaultPredictScript);
+
+  if (!fs.existsSync(metadataPath)) {
+    throw new Error(`Model metadata not found: ${metadataPath}`);
+  }
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error(`Prediction script not found: ${scriptPath}`);
+  }
+
+  const output = execFileSync('python3', [scriptPath, '--metadata', metadataPath], {
+    encoding: 'utf8',
+    input: `${JSON.stringify(featureRows)}\n`,
+    maxBuffer: 1024 * 1024 * 16,
+  });
+  const rows = JSON.parse(output);
+
+  if (!Array.isArray(rows) || rows.length !== featureRows.length) {
+    throw new Error(`XGBoost scorer returned ${Array.isArray(rows) ? rows.length : 'non-array'} rows for ${featureRows.length} candidates.`);
+  }
+
+  return rows.map((row) => ({
+    scorer_name: row.scorer_name ?? 'xgboost_model_v0',
+    predicted_quality_score: Number(row.predicted_quality_score),
+    ranking_score: Number(row.ranking_score),
+  }));
 }
 
 /**

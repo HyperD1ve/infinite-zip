@@ -19,6 +19,7 @@ assets/
 
 scripts/
   serve.mjs                  Local web server and feedback write endpoint.
+  clean-ds-stores.sh         Reusable cleanup/pre-commit hook installer.
   experiments/               Experiment and training dataset command scripts.
   model/                     XGBoost training scripts for the learned scorer.
 
@@ -45,9 +46,43 @@ npm run train:model
 npm run optimize:puzzles -- --count 1000 --top 3 --experiment-id search-001
 ```
 
+## Local Git Cleanup
+
+To delete `.DS_Store` files on demand:
+
+```sh
+sh scripts/clean-ds-stores.sh
+```
+
+To install a local pre-commit hook that runs the cleanup before each commit:
+
+```sh
+sh scripts/clean-ds-stores.sh --install-hook
+```
+
+The script is intentionally standalone, so it can be copied into other repositories as `scripts/clean-ds-stores.sh`.
+
 ## Feedback Flow
 
-The frontend evaluation panel loads a `*-top-candidates.json` file, presents candidates one at a time, and writes submitted feedback back into the local repo through `npm start`.
+The frontend is organized around the iterative loop:
+
+```text
+generate or load candidate -> play Zip -> submit feedback -> save rows back to the repo
+```
+
+Start the app with:
+
+```sh
+npm start
+```
+
+Use `Generate` for a fresh candidate, or load an optimization queue such as:
+
+```text
+assets/data/experiments/search-001-top-candidates.json
+```
+
+After playing, `Save` writes the feedback row and puzzle feature row through the local server. `Save & Next` advances to the next queued candidate, or generates a fresh candidate when the queue is exhausted.
 
 Feedback writes to:
 
@@ -75,6 +110,13 @@ npm run train:model
 ```
 
 Model artifacts are written under `models/` and ignored by git. The current official baseline labels are all `1`, so the first model proves the pipeline but will not learn real preferences until local human evaluations add varied labels.
+
+`npm run optimize:puzzles` now uses the trained model in `auto` mode when `models/puzzle_quality-metadata.json` and the model artifact exist. It falls back to the bootstrap scorer on a clean checkout. You can force a mode with:
+
+```sh
+npm run optimize:puzzles -- --scorer xgboost
+npm run optimize:puzzles -- --scorer bootstrap
+```
 
 ## Data Policy
 

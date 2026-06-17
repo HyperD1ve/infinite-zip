@@ -104,6 +104,16 @@ ranking_score = predicted_quality_score
 
 Do not fold handcrafted quality rules into the final learned scorer.
 
+Current implementation:
+
+```text
+--scorer auto      Use XGBoost when local artifacts exist, otherwise bootstrap.
+--scorer xgboost   Require model prediction and fail if artifacts/dependencies are missing.
+--scorer bootstrap Use handcrafted exploration score.
+```
+
+`optimize:puzzles` batch-scores generated candidate feature rows through `scripts/model/predict_quality.py` so the XGBoost model influences candidate ranking without changing puzzle construction itself.
+
 ## Human Feedback
 
 Only the final Top 3 candidates should be shown for human evaluation.
