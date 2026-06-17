@@ -212,15 +212,14 @@ function pickCell(cell) {
     return;
   }
 
-  const finalClue = state.puzzle.clues[state.puzzle.clues.length - 1];
-  const isFinalClue = clue?.number === finalClue.number;
-  if (isFinalClue && path.length + 1 !== state.puzzle.rows * state.puzzle.cols) {
+  const totalCells = state.puzzle.rows * state.puzzle.cols;
+  if (clue && clue.number === state.puzzle.clues.length && path.length !== totalCells - 1) {
     setStatus('Finish last');
     return;
   }
 
   state.playerPath = [...path, cell];
-  const solved = state.playerPath.length === state.puzzle.rows * state.puzzle.cols && isFinalClue;
+  const solved = state.playerPath.length === totalCells && clue?.number === state.puzzle.clues.length;
   state.completed = solved || state.completed;
   setStatus(solved ? 'Solved' : clue ? `Reached ${clue.number}` : `${state.playerPath.length}`);
   render();

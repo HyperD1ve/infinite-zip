@@ -5,10 +5,22 @@ This directory is the project’s local puzzle database. Files here fall into fo
 ## Files
 
 ```text
+official-images/
+```
+
+Incoming solved/unsolved Zip screenshot pairs. This is the default input for:
+
+```sh
+npm run process:images
+```
+
+Keep this as the fresh-data drop zone rather than storing incoming screenshots inside `.agents/skills/process-images`.
+
+```text
 image-puzzles/
 ```
 
-Canonical Puzzle JSON converted from the five official LinkedIn Zip screenshots. These are useful source examples and should be kept. `puzzles.json` is the combined version used by scripts.
+Canonical Puzzle JSON converted from screenshots in `official-images/`. These are useful source examples and should be kept. `puzzles.json` is the combined version used by scripts.
 
 ```text
 puzzles-statistics.csv

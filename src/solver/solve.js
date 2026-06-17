@@ -43,7 +43,6 @@ export function countSolutions(puzzle, options = {}) {
   const totalCells = rows * cols;
   const start = clueAsCell(clues[0]);
   const finalClue = clues[clues.length - 1];
-  const finalKey = cellKey(finalClue);
 
   /** @type {SolutionPath} */
   const path = [start];
@@ -70,7 +69,7 @@ export function countSolutions(puzzle, options = {}) {
     }
 
     if (path.length === totalCells) {
-      if (nextClueIndex === clues.length && cellKey(current) === finalKey) {
+      if (nextClueIndex === clues.length && sameCell(current, finalClue)) {
         solutionCount += 1;
         if (options.collectSolutions) {
           solutions.push(path.map((cell) => ({ ...cell })));
@@ -83,7 +82,7 @@ export function countSolutions(puzzle, options = {}) {
       return;
     }
 
-    if (!canStillReachNextClue(rows, cols, current, visited, clues, clueByCell, wallSet, nextClueIndex)) {
+    if (nextClueIndex < clues.length && !canStillReachNextClue(rows, cols, current, visited, clues, clueByCell, wallSet, nextClueIndex)) {
       return;
     }
 
@@ -91,7 +90,7 @@ export function countSolutions(puzzle, options = {}) {
       return;
     }
 
-    const candidates = legalMoves(rows, cols, current, visited, clues, clueByCell, wallSet, nextClueIndex, totalCells)
+    const candidates = legalMoves(rows, cols, current, visited, clues, clueByCell, wallSet, nextClueIndex, totalCells, path.length)
       .sort((a, b) => onwardDegree(rows, cols, a, visited, wallSet) - onwardDegree(rows, cols, b, visited, wallSet));
 
     if (candidates.length > 1) {
@@ -146,8 +145,9 @@ function clueAsCell(clue) {
  * @param {Set<string>} wallSet
  * @param {number} nextClueIndex
  * @param {number} totalCells
+ * @param {number} pathLength
  */
-function legalMoves(rows, cols, current, visited, clues, clueByCell, wallSet, nextClueIndex, totalCells) {
+function legalMoves(rows, cols, current, visited, clues, clueByCell, wallSet, nextClueIndex, totalCells, pathLength) {
   return passableNeighbors(rows, cols, current, wallSet).filter((candidate) => {
     const key = cellKey(candidate);
     if (visited.has(key)) {
@@ -164,8 +164,11 @@ function legalMoves(rows, cols, current, visited, clues, clueByCell, wallSet, ne
       return false;
     }
 
-    const isFinalClue = nextClueIndex === clues.length - 1;
-    return !isFinalClue || visited.size + 1 === totalCells;
+    if (clue.number === clues.length) {
+      return pathLength === totalCells - 1;
+    }
+
+    return true;
   });
 }
 

@@ -6,6 +6,7 @@
   "scripts": {
     "collect:statistics": "node .agents/skills/collect-statistics/scripts/collect.js",
     "build:training": "node scripts/experiments/build-training-dataset.mjs",
+    "train:model": "python3 scripts/model/train_quality_model.py",
     "optimize:puzzles": "node scripts/experiments/run-iteration.mjs",
     "process:images": "node .agents/skills/process-images/scripts/convert-images.js",
     "start": "node scripts/serve.mjs",

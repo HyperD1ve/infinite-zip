@@ -134,9 +134,26 @@ Build a joined training dataset with:
 npm run build:training
 ```
 
+Train the initial XGBoost quality model with:
+
+```sh
+python3 -m pip install --user -r requirements-ml.txt
+npm run train:model
+```
+
+Outputs:
+
+```text
+models/puzzle_quality.ubj
+models/puzzle_quality-metadata.json
+models/puzzle_quality-feature-importance.csv
+```
+
+The model currently trains on `enjoyment_score`. Feedback-derived columns are excluded from inputs to avoid target leakage. With only official baseline rows, the target is constant at `1`, so this first artifact is a pipeline checkpoint rather than a meaningful preference model.
+
 ## Future Phases
 
-1. Train `XGBRegressor` from human-labeled rows.
+1. Add varied human-labeled rows through frontend evaluation.
 2. Replace the bootstrap scorer with XGBoost prediction.
 3. Add evolutionary search over `GeneratorParameters`.
 4. Add local mutation operators:

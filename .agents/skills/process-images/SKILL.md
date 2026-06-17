@@ -18,7 +18,7 @@ Requires local ImageMagick commands `identify` and `magick`.
 The default input directory is:
 
 ```text
-.agents/skills/process-images/assets/images
+assets/data/official-images
 ```
 
 The default output directory is:
@@ -27,11 +27,11 @@ The default output directory is:
 assets/data/image-puzzles
 ```
 
-The converter expects each puzzle to have a solved and unsolved pair:
+The converter expects fresh screenshots to be dropped into the top-level data directory as solved/unsolved pairs:
 
 ```text
-11-6-unsolved.png
-11-6-solved.png
+assets/data/official-images/11-6-unsolved.png
+assets/data/official-images/11-6-solved.png
 ```
 
 It detects:

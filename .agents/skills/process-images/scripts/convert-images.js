@@ -4,11 +4,11 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+import { buildWallSet, hasWallBetween } from '../../../../src/game/board.js';
 import { validatePuzzle } from '../../../../src/game/puzzle.js';
 
 const repoRoot = path.join(fileURLToPath(new URL('../../../..', import.meta.url)));
-const skillRoot = path.join(fileURLToPath(new URL('..', import.meta.url)));
-const defaultImageDir = path.join(skillRoot, 'assets', 'images');
+const defaultImageDir = path.join(repoRoot, 'assets', 'data', 'official-images');
 const defaultOutputDir = path.join(repoRoot, 'assets', 'data', 'image-puzzles');
 
 const options = parseArgs(process.argv.slice(2));
@@ -92,7 +92,7 @@ function analyzeSolved(image, unsolved) {
   const circles = detectBlackCircles(image);
   const transform = fitSolvedGridTransform(unsolved.clueCells, circles);
   const centers = buildSolvedCenters(unsolved.rows, unsolved.cols, transform);
-  const edges = detectSolvedEdges(image, centers, unsolved.rows, unsolved.cols);
+  const edges = detectSolvedEdges(image, centers, unsolved.rows, unsolved.cols, unsolved.walls);
   const solution = tracePath(unsolved.rows, unsolved.cols, edges, unsolved.startCell);
 
   return { solution };
@@ -170,7 +170,40 @@ function normalizeGridLines(lines) {
   }
   const medianSpacingValue = median(spacings);
 
-  return sorted.filter((line, index) => index === 0 || line - sorted[index - 1] > medianSpacingValue * 0.45);
+  return fillLargeGridGaps(sorted.filter((line, index) => index === 0 || line - sorted[index - 1] > medianSpacingValue * 0.45));
+}
+
+/**
+ * @param {number[]} lines
+ */
+function fillLargeGridGaps(lines) {
+  if (lines.length < 3) {
+    return lines;
+  }
+
+  const spacings = [];
+  for (let index = 1; index < lines.length; index += 1) {
+    spacings.push(lines[index] - lines[index - 1]);
+  }
+  const medianSpacingValue = median(spacings);
+  const repaired = [lines[0]];
+
+  for (let index = 1; index < lines.length; index += 1) {
+    const previous = lines[index - 1];
+    const current = lines[index];
+    const gap = current - previous;
+    const segmentCount = Math.round(gap / medianSpacingValue);
+
+    if (segmentCount > 1 && Math.abs(gap / segmentCount - medianSpacingValue) <= medianSpacingValue * 0.2) {
+      for (let segment = 1; segment < segmentCount; segment += 1) {
+        repaired.push(previous + (gap * segment) / segmentCount);
+      }
+    }
+
+    repaired.push(current);
+  }
+
+  return repaired;
 }
 
 /**
@@ -442,12 +475,14 @@ function solvedCenter(transform, cell) {
  * @param {{ row: number, col: number, x: number, y: number }[]} centers
  * @param {number} rows
  * @param {number} cols
+ * @param {import('../../../../src/types/index.js').Wall[]} walls
  */
-function detectSolvedEdges(image, centers, rows, cols) {
+function detectSolvedEdges(image, centers, rows, cols, walls) {
   const centerByKey = new Map(centers.map((center) => [`${center.row},${center.col}`, center]));
+  const wallSet = buildWallSet(walls);
   const edges = new Map();
 
-  function add(a, b) {
+  function add(a, b, score) {
     const aKey = `${a.row},${a.col}`;
     const bKey = `${b.row},${b.col}`;
     if (!edges.has(aKey)) {
@@ -456,8 +491,8 @@ function detectSolvedEdges(image, centers, rows, cols) {
     if (!edges.has(bKey)) {
       edges.set(bKey, []);
     }
-    edges.get(aKey).push({ row: b.row, col: b.col });
-    edges.get(bKey).push({ row: a.row, col: a.col });
+    edges.get(aKey).push({ row: b.row, col: b.col, score });
+    edges.get(bKey).push({ row: a.row, col: a.col, score });
   }
 
   for (let row = 0; row < rows; row += 1) {
@@ -466,15 +501,17 @@ function detectSolvedEdges(image, centers, rows, cols) {
 
       if (col + 1 < cols) {
         const next = centerByKey.get(`${row},${col + 1}`);
-        if (sampleConnectorDensity(image, current, next) > 0.22) {
-          add(current, next);
+        const score = sampleConnectorDensity(image, current, next);
+        if (score > 0.22 && !hasWallBetween(wallSet, current, next)) {
+          add(current, next, score);
         }
       }
 
       if (row + 1 < rows) {
         const next = centerByKey.get(`${row + 1},${col}`);
-        if (sampleConnectorDensity(image, current, next) > 0.22) {
-          add(current, next);
+        const score = sampleConnectorDensity(image, current, next);
+        if (score > 0.22 && !hasWallBetween(wallSet, current, next)) {
+          add(current, next, score);
         }
       }
     }
@@ -486,7 +523,7 @@ function detectSolvedEdges(image, centers, rows, cols) {
 /**
  * @param {number} rows
  * @param {number} cols
- * @param {Map<string, Cell[]>} edges
+ * @param {Map<string, (Cell & { score: number })[]>} edges
  * @param {Cell} startCell
  */
 function tracePath(rows, cols, edges, startCell) {
@@ -494,25 +531,47 @@ function tracePath(rows, cols, edges, startCell) {
   const startKey = `${startCell.row},${startCell.col}`;
   const path = [startCell];
   const visited = new Set([startKey]);
-  let previous = null;
-  let current = startCell;
+  let explored = 0;
+  const maxExplored = 250000;
 
-  while (path.length < total) {
+  /**
+   * @param {Cell} current
+   * @param {string | null} previous
+   */
+  function search(current, previous) {
+    explored += 1;
+    if (explored > maxExplored) {
+      return false;
+    }
+
+    if (path.length === total) {
+      return true;
+    }
+
     const currentKey = `${current.row},${current.col}`;
     const candidates = (edges.get(currentKey) ?? []).filter((cell) => {
       const key = `${cell.row},${cell.col}`;
       return key !== previous && !visited.has(key);
-    });
+    }).sort((a, b) => b.score - a.score);
 
-    if (candidates.length !== 1) {
-      throw new Error(`Could not trace solved path at ${currentKey}; found ${candidates.length} candidates.`);
+    for (const next of candidates) {
+      const key = `${next.row},${next.col}`;
+      visited.add(key);
+      path.push({ row: next.row, col: next.col });
+
+      if (search(next, currentKey)) {
+        return true;
+      }
+
+      path.pop();
+      visited.delete(key);
     }
 
-    const next = candidates[0];
-    previous = currentKey;
-    current = next;
-    visited.add(`${current.row},${current.col}`);
-    path.push(current);
+    return false;
+  }
+
+  if (!search(startCell, null)) {
+    throw new Error(`Could not trace solved path from ${startKey}; searched ${explored} states.`);
   }
 
   return path;
@@ -680,7 +739,7 @@ function isPathPixel(pixel) {
   const max = Math.max(pixel.r, pixel.g, pixel.b);
   const min = Math.min(pixel.r, pixel.g, pixel.b);
   const avg = (pixel.r + pixel.g + pixel.b) / 3;
-  return pixel.a > 200 && max > 145 && avg > 80 && max - min > 45 && !isBlackPixel(pixel) && !isGridPixel(pixel);
+  return pixel.a > 200 && max > 115 && avg > 42 && max - min > 35 && !isBlackPixel(pixel) && !isGridPixel(pixel);
 }
 
 /**

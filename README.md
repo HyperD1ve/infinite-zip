@@ -15,10 +15,12 @@ The core rule from `.agents/AGENTS.md` still governs the project: puzzles are ge
 
 assets/
   data/                      Puzzle data, feature CSVs, feedback, training rows.
+    official-images/         Fresh solved/unsolved screenshot pairs for conversion.
 
 scripts/
   serve.mjs                  Local web server and feedback write endpoint.
   experiments/               Experiment and training dataset command scripts.
+  model/                     XGBoost training scripts for the learned scorer.
 
 src/
   game/                      Board, path, wall, and puzzle validation.
@@ -39,6 +41,7 @@ npm test
 npm run process:images
 npm run collect:statistics -- --input assets/data/image-puzzles/puzzles.json
 npm run build:training
+npm run train:model
 npm run optimize:puzzles -- --count 1000 --top 3 --experiment-id search-001
 ```
 
@@ -63,6 +66,15 @@ npm run build:training -- \
   --feedback assets/data/feedback/human-feedback.csv \
   --output assets/data/training/local-human-training.csv
 ```
+
+Train the first XGBoost quality model with:
+
+```sh
+python3 -m pip install --user -r requirements-ml.txt
+npm run train:model
+```
+
+Model artifacts are written under `models/` and ignored by git. The current official baseline labels are all `1`, so the first model proves the pipeline but will not learn real preferences until local human evaluations add varied labels.
 
 ## Data Policy
 
