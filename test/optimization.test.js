@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import { scoreCandidates } from '../src/optimization/scoring.js';
@@ -27,6 +30,24 @@ test('auto scorer falls back to bootstrap when model metadata is missing', () =>
   const scores = scoreCandidates([featureRow], {
     scorer: 'auto',
     modelMetadataPath: 'models/does-not-exist.json',
+  });
+
+  assert.equal(scores.length, 1);
+  assert.equal(scores[0].scorer_name, 'bootstrap_exploration_v0');
+});
+
+test('auto scorer falls back to bootstrap when model target is constant', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zip-model-'));
+  const metadataPath = path.join(dir, 'metadata.json');
+  fs.writeFileSync(metadataPath, JSON.stringify({
+    constant_target_warning: true,
+    model_path: 'missing.ubj',
+    feature_columns: [],
+  }));
+
+  const scores = scoreCandidates([featureRow], {
+    scorer: 'auto',
+    modelMetadataPath: metadataPath,
   });
 
   assert.equal(scores.length, 1);

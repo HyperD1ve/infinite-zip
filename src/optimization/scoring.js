@@ -26,6 +26,10 @@ const defaultModelMetadata = path.join(repoRoot, 'models', 'puzzle_quality-metad
  */
 export function scoreCandidates(featureRows, options = {}) {
   const scorer = options.scorer ?? 'auto';
+  if (scorer === 'auto' && hasConstantTargetWarning(options.modelMetadataPath)) {
+    return featureRows.map((featureRow) => scoreCandidate(featureRow));
+  }
+
   if (scorer !== 'bootstrap') {
     try {
       return scoreWithXgboost(featureRows, options);
@@ -37,6 +41,23 @@ export function scoreCandidates(featureRows, options = {}) {
   }
 
   return featureRows.map((featureRow) => scoreCandidate(featureRow));
+}
+
+/**
+ * @param {string | undefined} modelMetadataPath
+ */
+function hasConstantTargetWarning(modelMetadataPath) {
+  const metadataPath = path.resolve(modelMetadataPath ?? defaultModelMetadata);
+  if (!fs.existsSync(metadataPath)) {
+    return false;
+  }
+
+  try {
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    return metadata.constant_target_warning === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

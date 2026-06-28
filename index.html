@@ -22,10 +22,21 @@
         </div>
       </header>
 
+      <aside class="controls-card" aria-label="Controls">
+        <h2>Controls</h2>
+        <ul>
+          <li>Arrow keys</li>
+          <li>Click and drag</li>
+          <li>Space to clear</li>
+          <li>Esc to pause</li>
+        </ul>
+      </aside>
+
       <section class="workspace" aria-label="Puzzle">
         <header class="workspace-header">
           <div>
             <h2 id="candidate-title">Ready</h2>
+            <p id="source-state">Fresh generation</p>
           </div>
           <div class="stats" id="stats"></div>
         </header>
@@ -33,7 +44,16 @@
         <p id="status" class="status" aria-live="polite"></p>
       </section>
 
+      <div id="pause-overlay" class="pause-overlay" hidden>
+        <section class="pause-card" aria-label="Paused">
+          <h2>Pause</h2>
+          <p>Press any key to resume</p>
+          <button id="resume" type="button">Resume</button>
+        </section>
+      </div>
+
       <section class="feedback-panel" aria-label="Human feedback">
+        <button id="retrain-batch" class="secondary-action" type="button">Retrain & Batch</button>
         <button id="hint" type="button">Hint</button>
 
         <label>

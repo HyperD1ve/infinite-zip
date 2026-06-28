@@ -37,6 +37,15 @@ EXCLUDED_COLUMNS = {
     "player_like_score",
 }
 
+REQUIRED_FEATURE_COLUMNS = [
+    "generator_clue_density",
+    "generator_wall_density",
+    "generator_turn_bias",
+    "generator_symmetry_bias",
+    "generator_path_wiggle_factor",
+    "generator_clue_spacing_bias",
+]
+
 
 def main() -> None:
     args = parse_args()
@@ -188,7 +197,7 @@ def choose_feature_columns(rows: list[dict[str, str]], target: str) -> list[str]
     for column in columns:
         if column == target or column in EXCLUDED_COLUMNS:
             continue
-        if any(is_float(row.get(column, "")) for row in rows):
+        if column in REQUIRED_FEATURE_COLUMNS or any(is_float(row.get(column, "")) for row in rows):
             features.append(column)
 
     if not features:

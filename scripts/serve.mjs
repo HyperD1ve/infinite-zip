@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import fs, { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, relative } from 'node:path';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import { CSV_COLUMNS, extractPuzzleStatistics } from '../.agents/skills/collect-statistics/scripts/features.js';
@@ -9,8 +11,10 @@ import { countSolutions } from '../src/solver/solve.js';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)));
 const port = Number(process.env.PORT || 5173);
+const execFileAsync = promisify(execFile);
 const feedbackPath = join(root, 'assets', 'data', 'feedback', 'human-feedback.csv');
 const statisticsPath = join(root, 'assets', 'data', 'zip-statistics.csv');
+const experimentsPath = join(root, 'assets', 'data', 'experiments');
 const feedbackColumns = [
   'puzzle_id',
   'enjoyment_score',
@@ -30,6 +34,16 @@ const mimeTypes = new Map([
 
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? '/', `http://${request.headers.host}`);
+
+  if (request.method === 'GET' && url.pathname === '/api/candidates') {
+    handleCandidatesGet(response);
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/retrain-and-generate') {
+    handleRetrainAndGeneratePost(response);
+    return;
+  }
 
   if (request.method === 'POST' && url.pathname === '/api/feedback') {
     handleFeedbackPost(request, response);
@@ -52,6 +66,92 @@ const server = createServer((request, response) => {
   });
   createReadStream(filePath).pipe(response);
 });
+
+/**
+ * @param {import('node:http').ServerResponse} response
+ */
+function handleCandidatesGet(response) {
+  try {
+    const candidatePath = latestCandidatePath();
+    if (!candidatePath) {
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify({ ok: true, sourcePath: '', candidates: [] }));
+      return;
+    }
+
+    const candidates = JSON.parse(fs.readFileSync(candidatePath, 'utf8'));
+    response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({
+      ok: true,
+      sourcePath: relativePath(candidatePath),
+      candidates: Array.isArray(candidates) ? candidates : [],
+    }));
+  } catch (error) {
+    response.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+  }
+}
+
+/**
+ * @param {import('node:http').ServerResponse} response
+ */
+async function handleRetrainAndGeneratePost(response) {
+  const experimentId = `frontend-eval-${new Date().toISOString().replaceAll(/[:.]/g, '-')}`;
+
+  try {
+    const commands = [
+      await runLocalCommand('npm', ['run', 'build:training']),
+      await runLocalCommand('npm', ['run', 'train:model']),
+      await runLocalCommand('npm', [
+        'run',
+        'optimize:puzzles',
+        '--',
+        '--algorithm',
+        'evolutionary',
+        '--count',
+        '100',
+        '--population-size',
+        '16',
+        '--elite-count',
+        '5',
+        '--rows',
+        '5',
+        '--cols',
+        '5',
+        '--target',
+        'hard',
+        '--seed-prefix',
+        experimentId,
+        '--top',
+        '16',
+        '--scorer',
+        'auto',
+        '--mutation-rate',
+        '0.55',
+        '--mutation-strength',
+        '0.32',
+        '--exploration-rate',
+        '0.35',
+        '--experiment-id',
+        experimentId,
+      ]),
+    ];
+    const candidatePath = latestCandidatePath();
+    const candidates = candidatePath ? JSON.parse(fs.readFileSync(candidatePath, 'utf8')) : [];
+
+    response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({
+      ok: true,
+      experimentId,
+      sourcePath: candidatePath ? relativePath(candidatePath) : '',
+      candidates: Array.isArray(candidates) ? candidates : [],
+      commands,
+    }));
+  } catch (error) {
+    response.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+  }
+}
 
 /**
  * @param {import('node:http').IncomingMessage} request
@@ -221,6 +321,36 @@ function parseCsvLine(line) {
  */
 function relativePath(filePath) {
   return relative(root, filePath);
+}
+
+function latestCandidatePath() {
+  if (!existsSync(experimentsPath)) {
+    return null;
+  }
+
+  return fs.readdirSync(experimentsPath)
+    .filter((name) => name.endsWith('-top-candidates.json'))
+    .map((name) => join(experimentsPath, name))
+    .filter((filePath) => statSync(filePath).isFile())
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0] ?? null;
+}
+
+/**
+ * @param {string} command
+ * @param {string[]} args
+ */
+async function runLocalCommand(command, args) {
+  const { stdout, stderr } = await execFileAsync(command, args, {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024 * 32,
+  });
+
+  return {
+    command: [command, ...args].join(' '),
+    stdout: stdout.trim(),
+    stderr: stderr.trim(),
+  };
 }
 
 server.listen(port, () => {

@@ -44,7 +44,7 @@ npm run collect:statistics -- --input assets/data/image-puzzles/puzzles.json
 npm run build:training
 npm run train:model
 npm run optimize:puzzles -- --count 1000 --top 3 --experiment-id search-001
-npm run optimize:puzzles -- --algorithm evolutionary --count 1000 --top 3 --experiment-id evo-001
+npm run optimize:puzzles -- --algorithm evolutionary --count 1000 --top 16 --experiment-id evo-001
 ```
 
 ## Local Git Cleanup
@@ -79,6 +79,10 @@ npm start
 
 The frontend shows one generated puzzle at a time using fixed hidden defaults for the current evaluation loop. After playing, `Save & Next` writes the feedback row and puzzle feature row through the local server, then advances to a fresh puzzle. `Hint` reveals the solution and increments the hint count.
 
+If `assets/data/experiments/*-top-candidates.json` files exist, the local server serves the newest one to the frontend first. The app walks through that ranked Top N batch for human evaluation. When the batch is exhausted, it stops and asks for a new retrain/batch run instead of silently showing one-off generated puzzles.
+
+The header under the puzzle title shows whether the current puzzle came from a candidate batch or from fresh default generation. Use `Retrain & Batch` to rebuild the local training CSV, retrain the XGBoost artifact, generate a new ranked Top 16 candidate batch, and load it into the board. Each retrain run uses a fresh seed prefix plus higher evolutionary exploration/mutation settings, which is this project’s equivalent of raising sampling temperature.
+
 Feedback writes to:
 
 ```text
@@ -106,7 +110,7 @@ npm run train:model
 
 Model artifacts are written under `models/` and ignored by git. The current official baseline labels are all `1`, so the first model proves the pipeline but will not learn real preferences until local human evaluations add varied labels.
 
-`npm run optimize:puzzles` now uses the trained model in `auto` mode when `models/puzzle_quality-metadata.json` and the model artifact exist. It falls back to the bootstrap scorer on a clean checkout. You can force a mode with:
+`npm run optimize:puzzles` now uses the trained model in `auto` mode when `models/puzzle_quality-metadata.json` and the model artifact exist. It falls back to the bootstrap scorer on a clean checkout, and also falls back when the current model metadata says the target labels are constant. You can force a mode with:
 
 ```sh
 npm run optimize:puzzles -- --scorer xgboost

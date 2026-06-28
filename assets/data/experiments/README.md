@@ -10,7 +10,7 @@ The optimizer supports both the random baseline and evolutionary parameter searc
 
 ```sh
 npm run optimize:puzzles -- --algorithm random --count 100 --top 3
-npm run optimize:puzzles -- --algorithm evolutionary --count 1000 --population-size 40 --elite-count 8 --top 3
+npm run optimize:puzzles -- --algorithm evolutionary --count 1000 --population-size 40 --elite-count 8 --top 16
 ```
 
 Each run can produce:

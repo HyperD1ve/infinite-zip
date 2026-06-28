@@ -30,7 +30,7 @@ models/puzzle_quality-metadata.json
 models/puzzle_quality-feature-importance.csv
 ```
 
-The model consumes numeric puzzle feature columns and predicts `enjoyment_score`. Feedback-derived columns such as `player_like_score`, `hint_count`, and `solve_time_seconds` are excluded as model inputs to avoid leaking the target back into prediction.
+The model consumes numeric generator and puzzle feature columns and predicts `enjoyment_score` by default. Feedback-derived columns such as `player_like_score`, `hint_count`, and `solve_time_seconds` are excluded as model inputs to avoid leaking post-play labels back into prediction.
 
 The current official dataset is intentionally tiny and has a constant enjoyment label, so the first artifact is mainly a pipeline check. It becomes useful for ranking once local human evaluations add varied labels.
 

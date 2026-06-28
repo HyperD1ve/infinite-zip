@@ -23,7 +23,7 @@ npm run optimize:puzzles -- \
   --count 1000 \
   --population-size 40 \
   --elite-count 8 \
-  --top 3 \
+  --top 16 \
   --experiment-id evo-001
 ```
 
@@ -59,7 +59,7 @@ In the evaluation panel, load a Top N candidate file such as:
 assets/data/experiments/search-001-top-candidates.json
 ```
 
-The app presents one candidate puzzle at a time on the normal play board. After playing, submit:
+The local app automatically loads the newest `assets/data/experiments/*-top-candidates.json` file when one exists. It presents one candidate puzzle at a time on the normal play board. After playing, submit:
 
 - enjoyment score,
 - difficulty rating,
@@ -67,7 +67,7 @@ The app presents one candidate puzzle at a time on the normal play board. After 
 - solve time,
 - completion status.
 
-Feedback is stored in browser localStorage and can be exported as CSV from the app.
+Feedback is stored in browser localStorage and posted to the local repo through `/api/feedback`.
 
 ## Generator Parameters
 
@@ -138,9 +138,11 @@ Current implementation:
 
 Evolutionary search still only changes `GeneratorParameters`. Every candidate puzzle is generated algorithmically and validated by the solver before ranking.
 
+The frontend `Retrain & Batch` flow uses a fresh seed prefix for every run and hotter search settings (`mutationRate=0.55`, `mutationStrength=0.32`, `explorationRate=0.35`) so repeated batches do not begin from the same deterministic population.
+
 ## Human Feedback
 
-Only the final Top 3 candidates should be shown for human evaluation.
+Only the retained Top N candidates should be shown for human evaluation. The frontend retrain flow currently keeps 16 ranked candidates so lower-ranked-but-still-scored puzzles are evaluated before any fresh fallback generation.
 
 Feedback rows should include:
 
