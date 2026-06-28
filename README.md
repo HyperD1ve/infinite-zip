@@ -47,6 +47,10 @@ npm run optimize:puzzles -- --count 1000 --top 3 --experiment-id search-001
 npm run optimize:puzzles -- --algorithm evolutionary --count 1000 --top 16 --experiment-id evo-001
 ```
 
+## Deployment
+
+For a free full-stack preview, use the Render blueprint in `render.yaml`. See `DEPLOYMENT.md` for setup notes and caveats about local filesystem persistence.
+
 ## Local Git Cleanup
 
 To delete `.DS_Store` files on demand:
