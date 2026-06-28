@@ -15,6 +15,18 @@ Run a parameter-search experiment:
 npm run optimize:puzzles -- --count 1000 --rows 6 --cols 6 --top 3 --experiment-id search-001
 ```
 
+Run the evolutionary parameter-search phase:
+
+```sh
+npm run optimize:puzzles -- \
+  --algorithm evolutionary \
+  --count 1000 \
+  --population-size 40 \
+  --elite-count 8 \
+  --top 3 \
+  --experiment-id evo-001
+```
+
 Outputs:
 
 ```text
@@ -25,6 +37,7 @@ assets/data/experiments/search-001-top-candidates.json
 The history CSV stores:
 
 - generator parameters,
+- search algorithm, generation, and parent IDs,
 - full extracted feature vector,
 - solver metrics,
 - ranking score,
@@ -114,6 +127,17 @@ Current implementation:
 
 `optimize:puzzles` batch-scores generated candidate feature rows through `scripts/model/predict_quality.py` so the XGBoost model influences candidate ranking without changing puzzle construction itself.
 
+## Search
+
+Current implementation:
+
+```text
+--algorithm random        Uniform generator-parameter sampling baseline.
+--algorithm evolutionary  Score populations, retain elite parameter sets, then mutate/crossover offspring.
+```
+
+Evolutionary search still only changes `GeneratorParameters`. Every candidate puzzle is generated algorithmically and validated by the solver before ranking.
+
 ## Human Feedback
 
 Only the final Top 3 candidates should be shown for human evaluation.
@@ -165,7 +189,7 @@ The model currently trains on `enjoyment_score`. Feedback-derived columns are ex
 
 1. Add varied human-labeled rows through frontend evaluation.
 2. Replace the bootstrap scorer with XGBoost prediction.
-3. Add evolutionary search over `GeneratorParameters`.
+3. Add evolutionary search over `GeneratorParameters`. Done as `--algorithm evolutionary`.
 4. Add local mutation operators:
    - `moveClue`
    - `addWall`

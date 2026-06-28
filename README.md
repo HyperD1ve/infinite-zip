@@ -11,7 +11,8 @@ The core rule from `.agents/AGENTS.md` still governs the project: puzzles are ge
   AGENTS.md                  Canonical Zip rules and generator constraints.
   AGENTS2.md                 Iterative improvement and learned-ranking roadmap.
   ITERATIVE_IMPROVEMENT.md   Current optimization loop notes.
-  skills/                    Local workflow notes and scripts.
+  skills/                    Local workflow skills and reusable skill scripts.
+    clean-ds-stores/         Reusable .DS_Store cleanup skill and hook script.
 
 assets/
   data/                      Puzzle data, feature CSVs, feedback, training rows.
@@ -19,7 +20,6 @@ assets/
 
 scripts/
   serve.mjs                  Local web server and feedback write endpoint.
-  clean-ds-stores.sh         Reusable cleanup/pre-commit hook installer.
   experiments/               Experiment and training dataset command scripts.
   model/                     XGBoost training scripts for the learned scorer.
 
@@ -44,6 +44,7 @@ npm run collect:statistics -- --input assets/data/image-puzzles/puzzles.json
 npm run build:training
 npm run train:model
 npm run optimize:puzzles -- --count 1000 --top 3 --experiment-id search-001
+npm run optimize:puzzles -- --algorithm evolutionary --count 1000 --top 3 --experiment-id evo-001
 ```
 
 ## Local Git Cleanup
@@ -51,16 +52,16 @@ npm run optimize:puzzles -- --count 1000 --top 3 --experiment-id search-001
 To delete `.DS_Store` files on demand:
 
 ```sh
-sh scripts/clean-ds-stores.sh
+sh .agents/skills/clean-ds-stores/scripts/clean-ds-stores.sh
 ```
 
 To install a local pre-commit hook that runs the cleanup before each commit:
 
 ```sh
-sh scripts/clean-ds-stores.sh --install-hook
+sh .agents/skills/clean-ds-stores/scripts/clean-ds-stores.sh --install-hook
 ```
 
-The script is intentionally standalone, so it can be copied into other repositories as `scripts/clean-ds-stores.sh`.
+Codex can also use the local `clean-ds-stores` skill when this cleanup is useful. The script lives with the skill so it can be copied into other repositories as a small reusable tool.
 
 ## Feedback Flow
 
@@ -110,6 +111,12 @@ Model artifacts are written under `models/` and ignored by git. The current offi
 ```sh
 npm run optimize:puzzles -- --scorer xgboost
 npm run optimize:puzzles -- --scorer bootstrap
+```
+
+It also supports evolutionary generator-parameter search:
+
+```sh
+npm run optimize:puzzles -- --algorithm evolutionary --population-size 40 --elite-count 8
 ```
 
 ## Data Policy

@@ -4,7 +4,12 @@ import { test } from 'node:test';
 import { validateSolutionPath } from '../src/game/board.js';
 import { publicPuzzle, validatePuzzle } from '../src/game/puzzle.js';
 import { buildCluesFromPath } from '../src/generator/generateClues.js';
-import { normalizeGeneratorParameters } from '../src/generator/parameters.js';
+import {
+  GENERATOR_PARAMETER_RANGES,
+  crossoverGeneratorParameters,
+  mutateGeneratorParameters,
+  normalizeGeneratorParameters,
+} from '../src/generator/parameters.js';
 import { generatePuzzle } from '../src/generator/puzzle.js';
 import { generateSolution } from '../src/generator/generateSolution.js';
 import { countSolutions } from '../src/solver/solve.js';
@@ -78,6 +83,38 @@ test('generated puzzles retain tunable generator parameters', () => {
   assert.deepEqual(puzzle.generatorParameters, parameters);
   assert.equal(puzzle.walls.length, 0);
   assert.ok(puzzle.clues.length >= Math.ceil(16 * parameters.clueDensity));
+});
+
+test('generator parameter mutation remains deterministic and bounded', () => {
+  const base = normalizeGeneratorParameters('hard', {
+    clueDensity: 0.99,
+    wallDensity: -1,
+  });
+  const first = mutateGeneratorParameters(base, 'MUTATE-1', {
+    mutationRate: 1,
+    mutationStrength: 1,
+  });
+  const second = mutateGeneratorParameters(base, 'MUTATE-1', {
+    mutationRate: 1,
+    mutationStrength: 1,
+  });
+
+  assert.deepEqual(first, second);
+  for (const [key, value] of Object.entries(first)) {
+    const [min, max] = GENERATOR_PARAMETER_RANGES[key];
+    assert.ok(value >= min, `${key} should be >= ${min}`);
+    assert.ok(value <= max, `${key} should be <= ${max}`);
+  }
+});
+
+test('generator parameter crossover chooses bounded parent values', () => {
+  const parentA = normalizeGeneratorParameters('easy');
+  const parentB = normalizeGeneratorParameters('hard');
+  const child = crossoverGeneratorParameters(parentA, parentB, 'CROSSOVER-1');
+
+  for (const [key, value] of Object.entries(child)) {
+    assert.ok(value === parentA[key] || value === parentB[key], `${key} should come from one parent`);
+  }
 });
 
 test('public puzzle omits the solution path', () => {

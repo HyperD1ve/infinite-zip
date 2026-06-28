@@ -1,11 +1,11 @@
 ---
 name: code-review
-description: Reviews code changes for bugs, style issues, and best practices. Use when reviewing PRs or checking code quality.
+description: Review code changes, diffs, PRs, or atomic implementation sections for correctness, regressions, edge cases, missing tests, style, and maintainability risks.
 ---
 
 # Code Review Skill
 
-When reviewing code, follow these steps:
+Use this skill when the user asks for a review, PR review, code quality check, or an atomic review before continuing implementation.
 
 ## Review checklist
 

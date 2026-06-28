@@ -2,10 +2,13 @@
 set -eu
 
 MARKER="# clean-ds-stores hook"
+SCRIPT_NAME=$(basename "$0")
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_NAME"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/clean-ds-stores.sh [--clean | --check | --install-hook] [path]
+Usage: clean-ds-stores.sh [--clean | --check | --install-hook] [path]
 
 Modes:
   --clean         Delete .DS_Store files under the target repo/directory. Default.
@@ -13,7 +16,7 @@ Modes:
   --install-hook  Install a local Git pre-commit hook that runs --clean.
 
 The optional path may be any directory inside the target project. This script is
-designed to be copied into other repositories as scripts/clean-ds-stores.sh.
+designed to live inside a Codex skill folder and can be run from any checkout.
 EOF
 }
 
@@ -103,24 +106,24 @@ install_hook() {
     mv "$hook_path" "$backup_path"
   fi
 
-  cat > "$hook_path" <<'EOF'
+  cat > "$hook_path" <<EOF
 #!/usr/bin/env sh
 set -eu
 # clean-ds-stores hook
 
-repo_root=$(git rev-parse --show-toplevel)
-cleaner="$repo_root/scripts/clean-ds-stores.sh"
-previous_hook="$repo_root/.git/hooks/pre-commit.before-clean-ds-stores"
+repo_root=\$(git rev-parse --show-toplevel)
+cleaner="$SCRIPT_PATH"
+previous_hook="\$repo_root/.git/hooks/pre-commit.before-clean-ds-stores"
 
-if [ -x "$cleaner" ]; then
-  "$cleaner" --clean "$repo_root"
+if [ -x "\$cleaner" ]; then
+  "\$cleaner" --clean "\$repo_root"
 else
-  printf 'Missing executable cleaner: %s\n' "$cleaner" >&2
+  printf 'Missing executable cleaner: %s\n' "\$cleaner" >&2
   exit 1
 fi
 
-if [ -x "$previous_hook" ]; then
-  "$previous_hook" "$@"
+if [ -x "\$previous_hook" ]; then
+  "\$previous_hook" "\$@"
 fi
 EOF
 
